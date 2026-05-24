@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="theme-color" content="#0f0e17" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="description" content="Mein privates Tagebuch" />
+  <link rel="manifest" href="manifest.json" />
+  <title>Mein Tagebuch</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f0e17;
+      --surface: #1a1927;
+      --surface2: #242336;
+      --accent: #e8c97e;
+      --accent2: #c97eb8;
+      --text: #fffffe;
+      --text-muted: #7e7d9a;
+      --danger: #e87e7e;
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE TEXTURE ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── SCREENS ── */
+    .screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      flex-direction: column;
+      z-index: 10;
+    }
+    .screen.active { display: flex; }
+
+    /* ── PIN SCREEN ── */
+    #screen-pin {
+      background: var(--bg);
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      padding: 40px 24px;
+    }
+
+    .pin-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.2rem;
+      color: var(--accent);
+      text-align: center;
+      line-height: 1.1;
+    }
+    .pin-logo span {
+      display: block;
+      font-size: 0.85rem;
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text-muted);
+      font-weight: 300;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+
+    .pin-dots {
+      display: flex;
+      gap: 16px;
+    }
+    .pin-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--text-muted);
+      transition: all 0.2s;
+    }
+    .pin-dot.filled {
+      background: var(--accent);
+      border-color: var(--accent);
+      transform: scale(1.1);
+    }
+    .pin-dot.error {
+      background: var(--danger);
+      border-color: var(--danger);
+      animation: shake 0.4s ease;
+    }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    .pin-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 72px);
+      gap: 12px;
+    }
+    .pin-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 1.5px solid var(--surface2);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 1.4rem;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pin-btn:active { transform: scale(0.93); background: var(--surface2); }
+    .pin-btn.delete { font-size: 1.1rem; color: var(--text-muted); }
+    .pin-hint { font-size: 0.8rem; color: var(--text-muted); text-align: center; }
+
+    /* ── MAIN SCREEN ── */
+    #screen-main {
+      background: var(--bg);
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 52px 24px 16px;
+    }
+    .topbar-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      color: var(--accent);
+    }
+    .topbar-date {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    /* ── TABS ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 0 24px 16px;
+    }
+    .tab {
+      flex: 1;
+      padding: 8px;
+      border-radius: 10px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: all 0.2s;
+    }
+    .tab.active {
+      background: var(--surface);
+      color: var(--accent);
+    }
+
+    /* ── TAB CONTENT ── */
+    .tab-content { display: none; flex: 1; overflow-y: auto; padding: 0 24px 100px; }
+    .tab-content.active { display: block; }
+
+    /* ── TODAY VIEW ── */
+    .mood-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .section-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+    .mood-slider-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .mood-value {
+      font-family: 'Playfair Display', serif;
+      font-size: 3rem;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .mood-label { font-size: 0.85rem; color: var(--text-muted); }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 4px;
+      background: var(--surface2);
+      outline: none;
+      margin: 8px 0;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 0 4px rgba(232,201,126,0.15);
+    }
+
+    .entry-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: none;
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      line-height: 1.7;
+      padding: 14px;
+      resize: none;
+      min-height: 160px;
+      outline: none;
+    }
+    textarea::placeholder { color: var(--text-muted); }
+
+    .save-btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: var(--radius);
+      border: none;
+      background: var(--accent);
+      color: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.05em;
+    }
+    .save-btn:active { transform: scale(0.98); opacity: 0.9; }
+
+    .saved-toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface2);
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: 100px;
+      font-size: 0.85rem;
+      opacity: 0;
+      transition: all 0.3s;
+      pointer-events: none;
+      z-index: 100;
+      border: 1px solid var(--accent);
+    }
+    .saved-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── HISTORY VIEW ── */
+    .entry-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 12px;
+      border-left: 3px solid var(--accent);
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .entry-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .entry-card-date { font-size: 0.78rem; color: var(--text-muted); }
+    .entry-card-mood {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      color: var(--accent);
+    }
+    .entry-card-text {
+      font-size: 0.88rem;
+      color: var(--text);
+      line-height: 1.6;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .entry-card-delete {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      margin-top: 10px;
+      padding: 0;
+    }
+    .empty-state {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 60px 0;
+      font-size: 0.9rem;
+    }
+    .empty-state div:first-child { font-size: 2.5rem; margin-bottom: 12px; }
+
+    /* ── STATS VIEW ── */
+    .stat-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 12px;
+    }
+    .stat-big {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.8rem;
+      color: var(--accent);
+    }
+    .stat-desc { font-size: 0.82rem; color: var(--text-muted); margin-top: 4px; }
+
+    .chart-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 80px;
+      margin-top: 12px;
+    }
+    .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .chart-bar {
+      width: 100%;
+      border-radius: 4px 4px 0 0;
+      background: var(--surface2);
+      transition: height 0.5s ease;
+      min-height: 2px;
+    }
+    .chart-bar.has-data { background: var(--accent); opacity: 0.7; }
+    .chart-bar-label { font-size: 0.6rem; color: var(--text-muted); }
+
+    /* ── SETTINGS VIEW ── */
+    .settings-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 12px;
+    }
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--surface2);
+    }
+    .settings-row:last-child { border-bottom: none; }
+    .settings-row-label { font-size: 0.9rem; }
+    .settings-row-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+    .toggle {
+      width: 44px;
+      height: 24px;
+      background: var(--surface2);
+      border-radius: 100px;
+      border: none;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      top: 3px;
+      left: 3px;
+      transition: all 0.2s;
+    }
+    .toggle.on { background: rgba(232,201,126,0.2); }
+    .toggle.on::after { left: 23px; background: var(--accent); }
+
+    .danger-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--danger);
+      background: transparent;
+      color: var(--danger);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .danger-btn:active { background: rgba(232,126,126,0.1); }
+
+    .notif-time-input {
+      background: var(--surface2);
+      border: none;
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      padding: 6px 10px;
+      outline: none;
+      width: 100px;
+      text-align: center;
+    }
+
+    /* ── BOTTOM NAV ── */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--surface2);
+      display: flex;
+      padding: 8px 0 24px;
+      z-index: 50;
+    }
+    .nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.65rem;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 6px 0;
+      transition: color 0.2s;
+    }
+    .nav-btn.active { color: var(--accent); }
+    .nav-icon { font-size: 1.2rem; }
+
+    /* ── SETUP PIN SCREEN ── */
+    #screen-setup {
+      background: var(--bg);
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      padding: 40px 24px;
+    }
+    .setup-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      color: var(--accent);
+      text-align: center;
+    }
+    .setup-sub {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: center;
+      max-width: 260px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<!-- PIN SETUP SCREEN -->
+<div class="screen active" id="screen-setup">
+  <div class="pin-logo">Mein Tagebuch</div>
+  <div class="setup-title">PIN erstellen</div>
+  <div class="setup-sub">Wähle einen 4-stelligen PIN, um dein Tagebuch zu schützen.</div>
+  <div class="pin-dots" id="setup-dots">
+    <div class="pin-dot"></div>
+    <div class="pin-dot"></div>
+    <div class="pin-dot"></div>
+    <div class="pin-dot"></div>
+  </div>
+  <div id="setup-step-label" style="font-size:0.8rem;color:var(--text-muted);">PIN eingeben</div>
+  <div class="pin-grid" id="setup-grid"></div>
+</div>
+
+<!-- PIN LOGIN SCREEN -->
+<div class="screen" id="screen-pin">
+  <div class="pin-logo">
+    Mein Tagebuch
+    <span>Persönliches Journal</span>
+  </div>
+  <div class="pin-dots" id="pin-dots">
+    <div class="pin-dot"></div>
+    <div class="pin-dot"></div>
+    <div class="pin-dot"></div>
+    <div class="pin-dot"></div>
+  </div>
+  <div class="pin-hint" id="pin-hint">PIN eingeben</div>
+  <div class="pin-grid" id="pin-grid"></div>
+</div>
+
+<!-- MAIN SCREEN -->
+<div class="screen" id="screen-main">
+  <div class="topbar">
+    <div class="topbar-title">Mein Tagebuch</div>
+    <div class="topbar-date" id="topbar-date"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('today')">Heute</button>
+    <button class="tab" onclick="switchTab('history')">Verlauf</button>
+    <button class="tab" onclick="switchTab('stats')">Statistik</button>
+    <button class="tab" onclick="switchTab('settings')">Einst.</button>
+  </div>
+
+  <!-- TODAY -->
+  <div class="tab-content active" id="tab-today">
+    <div class="mood-section">
+      <div class="section-label">Stimmung heute</div>
+      <div class="mood-slider-wrap">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+          <div>
+            <div class="mood-value" id="mood-display">5</div>
+            <div class="mood-label" id="mood-label-text">Okay</div>
+          </div>
+          <div style="font-size:2rem;" id="mood-emoji">😐</div>
+        </div>
+        <input type="range" min="1" max="10" value="5" id="mood-slider" oninput="updateMood(this.value)" />
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:0.7rem;color:var(--text-muted);">1 – Schlecht</span>
+          <span style="font-size:0.7rem;color:var(--text-muted);">10 – Großartig</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="entry-section">
+      <div class="section-label">Tageseintrag</div>
+      <textarea id="entry-text" placeholder="Was ist heute passiert? Wie fühlst du dich?"></textarea>
+    </div>
+
+    <button class="save-btn" onclick="saveEntry()">Eintrag speichern</button>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="tab-content" id="tab-history">
+    <div id="history-list"></div>
+  </div>
+
+  <!-- STATS -->
+  <div class="tab-content" id="tab-stats">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div class="stat-card">
+        <div class="stat-big" id="stat-total">0</div>
+        <div class="stat-desc">Einträge gesamt</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-big" id="stat-avg">–</div>
+        <div class="stat-desc">Ø Stimmung</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="section-label">Letzte 7 Tage</div>
+      <div class="chart-bars" id="chart-bars"></div>
+    </div>
+    <div class="stat-card">
+      <div class="section-label">Bester Tag</div>
+      <div class="stat-big" id="stat-best">–</div>
+      <div class="stat-desc" id="stat-best-date"></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="tab-content" id="tab-settings">
+    <div class="settings-section">
+      <div class="section-label">Benachrichtigungen</div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Tägliche Erinnerung</div>
+          <div class="settings-row-desc">Push-Benachrichtigung jeden Tag</div>
+        </div>
+        <button class="toggle" id="notif-toggle" onclick="toggleNotifications()"></button>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Uhrzeit</div>
+          <div class="settings-row-desc">Wann soll die Erinnerung kommen?</div>
+        </div>
+        <input type="time" class="notif-time-input" id="notif-time" value="20:00" onchange="saveNotifTime()" />
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="section-label">Sicherheit</div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">PIN ändern</div>
+          <div class="settings-row-desc">Neuen 4-stelligen PIN setzen</div>
+        </div>
+        <button style="background:var(--surface2);border:none;color:var(--text);border-radius:8px;padding:6px 12px;font-family:'DM Sans',sans-serif;font-size:0.8rem;cursor:pointer;" onclick="changePin()">Ändern</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="section-label">Daten</div>
+      <button class="danger-btn" onclick="exportData()">📤 Daten exportieren</button>
+      <div style="margin-top:10px;"></div>
+      <button class="danger-btn" onclick="deleteAllData()">🗑 Alle Daten löschen</button>
+    </div>
+
+    <div style="text-align:center;color:var(--text-muted);font-size:0.75rem;padding:20px 0;">
+      Dein Tagebuch — alle Daten bleiben lokal auf diesem Gerät.
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button class="nav-btn active" onclick="switchTab('today')" id="nav-today">
+      <span class="nav-icon">✏️</span>Heute
+    </button>
+    <button class="nav-btn" onclick="switchTab('history')" id="nav-history">
+      <span class="nav-icon">📖</span>Verlauf
+    </button>
+    <button class="nav-btn" onclick="switchTab('stats')" id="nav-stats">
+      <span class="nav-icon">📊</span>Statistik
+    </button>
+    <button class="nav-btn" onclick="switchTab('settings')" id="nav-settings">
+      <span class="nav-icon">⚙️</span>Einstellungen
+    </button>
+  </div>
+</div>
+
+<div class="saved-toast" id="toast">✓ Eintrag gespeichert</div>
+
+<script>
+// ─── STORAGE HELPERS ───
+const store = {
+  get: (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+};
+
+// ─── MOOD LABELS ───
+const moodData = [
+  null,
+  { label: 'Sehr schlecht', emoji: '😞' },
+  { label: 'Schlecht',      emoji: '😔' },
+  { label: 'Nicht gut',     emoji: '😕' },
+  { label: 'Eher schlecht', emoji: '😟' },
+  { label: 'Okay',          emoji: '😐' },
+  { label: 'Ganz okay',     emoji: '🙂' },
+  { label: 'Gut',           emoji: '😊' },
+  { label: 'Sehr gut',      emoji: '😄' },
+  { label: 'Großartig',     emoji: '😁' },
+  { label: 'Perfekt!',      emoji: '🤩' },
+];
+
+function updateMood(v) {
+  document.getElementById('mood-display').textContent = v;
+  document.getElementById('mood-label-text').textContent = moodData[v].label;
+  document.getElementById('mood-emoji').textContent = moodData[v].emoji;
+  const pct = (v - 1) / 9;
+  const r = Math.round(232 - pct * (232 - 126));
+  const g = Math.round(201 - pct * (201 - 201) + pct * 0);
+  document.getElementById('mood-display').style.color =
+    pct < 0.4 ? '#e87e7e' : pct < 0.7 ? '#e8c97e' : '#7ec97e';
+}
+
+// ─── PIN LOGIC ───
+let pinBuffer = '';
+let setupStep = 0;
+let setupFirst = '';
+
+function buildPinGrid(containerId, tapFn) {
+  const grid = document.getElementById(containerId);
+  const nums = [1,2,3,4,5,6,7,8,9,'',0,'⌫'];
+  nums.forEach(n => {
+    const btn = document.createElement('button');
+    btn.className = 'pin-btn' + (n === '⌫' ? ' delete' : '');
+    btn.textContent = n;
+    if (n === '') { btn.style.visibility = 'hidden'; }
+    else { btn.addEventListener('click', () => tapFn(String(n))); }
+    grid.appendChild(btn);
+  });
+}
+
+function tapSetup(val) {
+  if (val === '⌫') { setupFirst = setupFirst.slice(0,-1); updateDots('setup-dots', setupFirst.length); return; }
+  if (setupStep === 0) {
+    if (setupFirst.length >= 4) return;
+    setupFirst += val;
+    updateDots('setup-dots', setupFirst.length);
+    if (setupFirst.length === 4) {
+      setTimeout(() => {
+        setupStep = 1;
+        setupFirst_temp = setupFirst;
+        setupFirst = '';
+        updateDots('setup-dots', 0);
+        document.getElementById('setup-step-label').textContent = 'PIN wiederholen';
+      }, 200);
+    }
+  } else {
+    if (setupFirst.length >= 4) return;
+    setupFirst += val;
+    updateDots('setup-dots', setupFirst.length);
+    if (setupFirst.length === 4) {
+      if (setupFirst === setupFirst_temp) {
+        store.set('pin', setupFirst);
+        setTimeout(() => showMain(), 200);
+      } else {
+        flashError('setup-dots');
+        setupFirst = '';
+        setupStep = 0;
+        setupFirst_temp = '';
+        updateDots('setup-dots', 0);
+        document.getElementById('setup-step-label').textContent = 'Nicht gleich – nochmal';
+      }
+    }
+  }
+}
+let setupFirst_temp = '';
+
+function tapPin(val) {
+  if (val === '⌫') { pinBuffer = pinBuffer.slice(0,-1); updateDots('pin-dots', pinBuffer.length); return; }
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += val;
+  updateDots('pin-dots', pinBuffer.length);
+  if (pinBuffer.length === 4) {
+    const saved = store.get('pin');
+    if (pinBuffer === saved) {
+      setTimeout(() => showMain(), 200);
+    } else {
+      flashError('pin-dots');
+      document.getElementById('pin-hint').textContent = 'Falscher PIN';
+      pinBuffer = '';
+    }
+  }
+}
+
+function updateDots(id, count) {
+  const dots = document.querySelectorAll(`#${id} .pin-dot`);
+  dots.forEach((d, i) => {
+    d.classList.toggle('filled', i < count);
+    d.classList.remove('error');
+  });
+}
+
+function flashError(id) {
+  const dots = document.querySelectorAll(`#${id} .pin-dot`);
+  dots.forEach(d => { d.classList.remove('filled'); d.classList.add('error'); });
+  setTimeout(() => dots.forEach(d => d.classList.remove('error')), 600);
+}
+
+// ─── SCREENS ───
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showMain() {
+  showScreen('screen-main');
+  loadToday();
+  updateTopbarDate();
+}
+
+function changePin() {
+  store.set('pin', null);
+  setupStep = 0; setupFirst = ''; setupFirst_temp = '';
+  updateDots('setup-dots', 0);
+  document.getElementById('setup-step-label').textContent = 'PIN eingeben';
+  showScreen('screen-setup');
+}
+
+// ─── INIT ───
+buildPinGrid('setup-grid', tapSetup);
+buildPinGrid('pin-grid', tapPin);
+
+window.addEventListener('load', () => {
+  const pin = store.get('pin');
+  if (!pin) { showScreen('screen-setup'); }
+  else { showScreen('screen-pin'); }
+  loadNotifSettings();
+});
+
+// ─── TOP BAR DATE ───
+function updateTopbarDate() {
+  const now = new Date();
+  const opts = { weekday: 'long', day: 'numeric', month: 'long' };
+  document.getElementById('topbar-date').innerHTML =
+    now.toLocaleDateString('de-DE', opts);
+}
+
+// ─── TABS ───
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[onclick="switchTab('${tab}')"].tab`).classList.add('active');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  document.getElementById(`nav-${tab}`).classList.add('active');
+  if (tab === 'history') renderHistory();
+  if (tab === 'stats') renderStats();
+}
+
+// ─── ENTRIES ───
+function getTodayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function loadToday() {
+  const key = getTodayKey();
+  const entries = store.get('entries') || {};
+  const today = entries[key];
+  if (today) {
+    document.getElementById('mood-slider').value = today.mood;
+    updateMood(today.mood);
+    document.getElementById('entry-text').value = today.text || '';
+  } else {
+    updateMood(5);
+  }
+}
+
+function saveEntry() {
+  const key = getTodayKey();
+  const entries = store.get('entries') || {};
+  entries[key] = {
+    mood: parseInt(document.getElementById('mood-slider').value),
+    text: document.getElementById('entry-text').value,
+    ts: Date.now(),
+  };
+  store.set('entries', entries);
+  showToast();
+}
+
+function showToast() {
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ─── HISTORY ───
+function renderHistory() {
+  const entries = store.get('entries') || {};
+  const keys = Object.keys(entries).sort().reverse();
+  const list = document.getElementById('history-list');
+  if (keys.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div>📝</div>Noch keine Einträge.</div>`;
+    return;
+  }
+  list.innerHTML = keys.map(k => {
+    const e = entries[k];
+    const [y,m,d] = k.split('-');
+    const dateStr = new Date(y,m-1,d).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    const preview = e.text ? e.text.replace(/</g,'&lt;') : '<em style="color:var(--text-muted)">Kein Text</em>';
+    const moodEmoji = moodData[e.mood]?.emoji || '';
+    return `<div class="entry-card">
+      <div class="entry-card-header">
+        <div class="entry-card-date">${dateStr}</div>
+        <div class="entry-card-mood">${moodEmoji} ${e.mood}/10</div>
+      </div>
+      <div class="entry-card-text">${preview}</div>
+      <button class="entry-card-delete" onclick="deleteEntry('${k}')">🗑 löschen</button>
+    </div>`;
+  }).join('');
+}
+
+function deleteEntry(key) {
+  if (!confirm('Eintrag löschen?')) return;
+  const entries = store.get('entries') || {};
+  delete entries[key];
+  store.set('entries', entries);
+  renderHistory();
+}
+
+// ─── STATS ───
+function renderStats() {
+  const entries = store.get('entries') || {};
+  const keys = Object.keys(entries);
+  document.getElementById('stat-total').textContent = keys.length;
+
+  if (keys.length === 0) {
+    document.getElementById('stat-avg').textContent = '–';
+    document.getElementById('stat-best').textContent = '–';
+    document.getElementById('chart-bars').innerHTML = '';
+    return;
+  }
+
+  const moods = keys.map(k => entries[k].mood);
+  const avg = (moods.reduce((a,b) => a+b, 0) / moods.length).toFixed(1);
+  document.getElementById('stat-avg').textContent = avg;
+
+  const bestKey = keys.reduce((a,b) => entries[a].mood >= entries[b].mood ? a : b);
+  const [y,m,d] = bestKey.split('-');
+  document.getElementById('stat-best').textContent = `${entries[bestKey].mood}/10 ${moodData[entries[bestKey].mood]?.emoji}`;
+  document.getElementById('stat-best-date').textContent = new Date(y,m-1,d).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'});
+
+  // Last 7 days chart
+  const bars = document.getElementById('chart-bars');
+  bars.innerHTML = '';
+  for (let i = 6; i >= 0; i--) {
+    const d2 = new Date();
+    d2.setDate(d2.getDate() - i);
+    const k = `${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,'0')}-${String(d2.getDate()).padStart(2,'0')}`;
+    const e = entries[k];
+    const h = e ? (e.mood / 10 * 80) : 2;
+    const day = d2.toLocaleDateString('de-DE',{weekday:'short'}).slice(0,2);
+    bars.innerHTML += `<div class="chart-bar-wrap">
+      <div class="chart-bar ${e ? 'has-data' : ''}" style="height:${h}px"></div>
+      <div class="chart-bar-label">${day}</div>
+    </div>`;
+  }
+}
+
+// ─── NOTIFICATIONS ───
+function loadNotifSettings() {
+  const on = store.get('notif_on');
+  const time = store.get('notif_time') || '20:00';
+  document.getElementById('notif-time').value = time;
+  if (on) document.getElementById('notif-toggle').classList.add('on');
+}
+
+async function toggleNotifications() {
+  const toggle = document.getElementById('notif-toggle');
+  const isOn = toggle.classList.contains('on');
+  if (!isOn) {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      alert('Bitte erlaube Benachrichtigungen in deinen Browser-Einstellungen.');
+      return;
+    }
+    toggle.classList.add('on');
+    store.set('notif_on', true);
+    scheduleNotification();
+    alert('✓ Erinnerung aktiviert! Öffne die App täglich oder installiere sie als PWA für zuverlässige Benachrichtigungen.');
+  } else {
+    toggle.classList.remove('on');
+    store.set('notif_on', false);
+  }
+}
+
+function saveNotifTime() {
+  store.set('notif_time', document.getElementById('notif-time').value);
+  if (store.get('notif_on')) scheduleNotification();
+}
+
+function scheduleNotification() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(reg => {
+      const time = store.get('notif_time') || '20:00';
+      const [h, m] = time.split(':').map(Number);
+      const now = new Date();
+      const next = new Date();
+      next.setHours(h, m, 0, 0);
+      if (next <= now) next.setDate(next.getDate() + 1);
+      const delay = next - now;
+      // Pass schedule to SW
+      reg.active?.postMessage({ type: 'SCHEDULE', delay, time });
+    });
+  }
+}
+
+// ─── DATA MANAGEMENT ───
+function exportData() {
+  const entries = store.get('entries') || {};
+  const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tagebuch-export-${getTodayKey()}.json`;
+  a.click();
+}
+
+function deleteAllData() {
+  if (!confirm('Wirklich alle Einträge löschen? Dies kann nicht rückgängig gemacht werden.')) return;
+  store.set('entries', {});
+  alert('Alle Einträge wurden gelöscht.');
+}
+
+// ─── SERVICE WORKER ───
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(e => console.log('SW error:', e));
+}
+</script>
+</body>
+</html>
